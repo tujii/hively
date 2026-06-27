@@ -83,16 +83,13 @@ function setAppHeight() {
   const app = document.getElementById('app');
   if (!app) return;
   if (IS_STANDALONE) {
-    // PWA: cover the FULL screen so the nav background reaches the very bottom
-    // (no black gap). Reserve the device's real bottom inset as nav padding so the
-    // labels sit above the home-indicator cut line.
     app.style.height = '100vh';
     const inset = Math.max(0, Math.round(screen.height - window.innerHeight));
-    if (inset > cachedBottomInset) cachedBottomInset = inset;
-    // +12px breathing room so the labels aren't flush against the home-indicator edge.
+    // Only cache when no keyboard is open (keyboard inflates the inset value).
+    const keyboardOpen = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+    if (!keyboardOpen && inset > cachedBottomInset) cachedBottomInset = inset;
     document.documentElement.style.setProperty('--sab', (cachedBottomInset + 12) + 'px');
   } else {
-    // Safari: no home indicator; track the dynamic URL bar via the visual viewport.
     document.documentElement.style.setProperty('--sab', '0px');
     app.style.height = (window.visualViewport ? window.visualViewport.height : window.innerHeight) + 'px';
   }
@@ -112,6 +109,17 @@ function bindAppHeight() {
 }
 
 // --- App Initialization ---
+// Native-feeling tap feedback: react on touchstart (not touchend like :active does).
+// Adds .tapped for 150ms — CSS handles the visual, JS handles the timing.
+document.addEventListener('touchstart', (e) => {
+  const el = e.target.closest('button, .hive-card, .nav-item, a');
+  if (!el) return;
+  el.classList.add('tapped');
+  const clear = () => { el.classList.remove('tapped'); el.removeEventListener('touchend', clear); el.removeEventListener('touchcancel', clear); };
+  el.addEventListener('touchend', clear);
+  el.addEventListener('touchcancel', clear);
+}, { passive: true });
+
 document.addEventListener('DOMContentLoaded', async () => {
   await initStorage();
   setupRouting();
@@ -583,6 +591,9 @@ function closeModal(id) {
   const modal = document.getElementById(id);
   if (modal) {
     modal.classList.remove('active');
+    // Keyboard may have resized innerHeight — re-measure after it fully dismisses.
+    setTimeout(setAppHeight, 100);
+    setTimeout(setAppHeight, 400);
   }
 }
 
